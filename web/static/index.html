@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPU Monitor — 实时监控报表</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<article class="sheet" aria-label="GPU 监控报表">
+
+  <!-- ─── Brandbar ────────────────────────────────────────── -->
+  <header class="brandbar">
+    <div class="mark" aria-hidden="true">G</div>
+    <div class="title-block">
+      <h1 class="title">GPU Monitor</h1>
+      <span class="subtitle">Real-time monitoring · 实时监控报表</span>
+    </div>
+    <div class="meta">
+      Sheet №&nbsp;<span class="sheet-no" id="sheetNo">—</span>
+      <div id="sheetDate">—</div>
+    </div>
+  </header>
+
+  <!-- ─── Ref Strip（仅 accent-soft 出现处）───────────────── -->
+  <section class="ref-strip" aria-label="元信息">
+    <div>
+      <div class="ref-label">Driver · 驱动版本</div>
+      <div class="ref-value" id="sbDriver">—</div>
+    </div>
+    <div>
+      <div class="ref-label">GPUs · 卡数</div>
+      <div class="ref-value" id="sbCount">—</div>
+    </div>
+    <div>
+      <div class="ref-label">Interval · 采样间隔</div>
+      <div class="ref-value" id="sbInterval">—</div>
+    </div>
+    <div>
+      <div class="ref-label">CSV · 日志文件</div>
+      <div class="ref-value" id="sbFile">—</div>
+    </div>
+  </section>
+
+  <!-- ─── Control Strip ───────────────────────────────────── -->
+  <div class="control-strip">
+    <span class="ctrl-label">Controls · 控制</span>
+    <select id="interval" aria-label="采样间隔">
+      <option value="500">0.5 s</option>
+      <option value="1000" selected>1.0 s</option>
+      <option value="2000">2.0 s</option>
+      <option value="5000">5.0 s</option>
+      <option value="10000">10.0 s</option>
+    </select>
+    <button id="toggleBtn" class="primary" type="button">Pause · 暂停</button>
+    <button id="clearBtn" type="button">Clear · 清空图表</button>
+    <button id="exportBtn" type="button">Export · 导出 CSV</button>
+    <span class="spacer"></span>
+  </div>
+
+  <!-- ─── Notice (no GPU) ─────────────────────────────────── -->
+  <section id="noGpuNotice" class="notice" hidden>
+    <strong>Notice · 系统提示</strong>
+    未检测到 NVIDIA GPU 或驱动。本程序需要 NVIDIA 显卡 + 已安装的 NVIDIA 驱动。
+  </section>
+
+  <!-- ─── KPI Tiles ───────────────────────────────────────── -->
+  <section class="section" aria-label="KPI 卡片">
+    <h2 class="section-title">KPI · 关键指标</h2>
+    <div id="cardsRow" class="cards-row"></div>
+  </section>
+
+  <!-- ─── Charts ──────────────────────────────────────────── -->
+  <section class="section" aria-label="实时曲线">
+    <h2 class="section-title">Charts · 实时曲线</h2>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>GPU Utilization %</h3>
+        <canvas id="chartUtil"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Memory Usage · 显存 (MB)</h3>
+        <canvas id="chartMem"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Power Draw · 功率 (W)</h3>
+        <canvas id="chartPower"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Temperature · 温度 (°C)</h3>
+        <canvas id="chartTemp"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Process Table ───────────────────────────────────── -->
+  <section class="section" aria-label="进程列表">
+    <h2 class="section-title">Processes · 进程列表</h2>
+    <table class="process-table">
+      <thead>
+        <tr>
+          <th>GPU</th>
+          <th>PID</th>
+          <th>Process · 进程</th>
+          <th>Memory · 显存 (MB)</th>
+        </tr>
+      </thead>
+      <tbody id="procBody"></tbody>
+    </table>
+  </section>
+
+  <!-- ─── Statusbar ───────────────────────────────────────── -->
+  <footer class="statusbar" aria-label="状态栏">
+    <span>Last Update · 上次刷新 <span class="val" id="sbLast">—</span></span>
+    <span class="sep">·</span>
+    <span>Local CSV Logger · 本地 CSV 日志</span>
+    <span class="badge disconnected" id="sbConnection">Disconnected</span>
+  </footer>
+
+</article>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

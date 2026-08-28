@@ -1,0 +1,1 @@
+"""Core data layer: NVML GPU sampling and CSV logging."""

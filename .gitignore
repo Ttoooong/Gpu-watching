@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+# Windows
+# Thumbs
+.DS_Store
+Thumbs.db
+
+# Logs / runtime artifacts
+logs/
+*.log
+
+# Test artifacts
+_e2e_*.py
+_repro_*.py
+test_*.png

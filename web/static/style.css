@@ -1,0 +1,551 @@
+/* ============================================================
+   墨绿账笺 · INVOICE  ·  Design tokens
+   ------------------------------------------------------------
+   Hard rules from `e:\GPU\前端设计.md`:
+   - Single accent color (墨绿).  No red/orange/blue anywhere.
+   - One layer of paper-shadow only.  Inner elements: none.
+   - Max border-radius 8px.  No capsule-shaped tags.
+   - Numbers right-aligned + tabular-nums.
+   - Display: serif.  Labels: mono uppercase.  Body: system sans.
+   - ≤720px: collapse to single column, border-radius → 0.
+   ============================================================ */
+
+:root {
+  /* -- colors -- */
+  --bg:          #f3f1ec;   /* 暖米纸底 */
+  --paper:       #ffffff;   /* 单据本体 */
+  --ink:         #15140f;   /* 墨黑 */
+  --muted:       #6e6a5d;   /* 次要文字 */
+  --line:        #ddd6c4;   /* 米色分隔线 */
+  --accent:      #1f4d3a;   /* 墨绿，唯一强调色 */
+  --accent-soft: #e3ece8;   /* 仅引用条 */
+
+  --shadow-paper: 0 24px 60px rgba(28, 27, 26, 0.06);
+
+  /* chart series: 墨绿明度阶 (4 阶) */
+  --series-0: #1f4d3a;   /* 最深 */
+  --series-1: #4a6e5e;
+  --series-2: #75908a;
+  --series-3: #a3b3af;   /* 最浅 */
+
+  /* -- typography -- */
+  --font-display: "Iowan Old Style", "Charter", "Source Serif 4",
+                  "Songti SC", "STSong", "SimSun", serif;
+  --font-body:    -apple-system, BlinkMacSystemFont, "Segoe UI",
+                  "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
+
+  /* -- shape -- */
+  --radius-sm: 6px;
+  --radius-md: 8px;   /* 上限 */
+
+  /* -- spacing -- */
+  --gap: 24px;
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.55;
+  background: var(--bg);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================
+   Sheet  ·  整个单据容器
+   ============================================================ */
+
+.sheet {
+  width: 100%;
+  max-width: 820px;
+  margin: 32px auto;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-paper);
+}
+
+/* ============================================================
+   Brandbar  ·  顶部品牌栏
+   ============================================================ */
+
+.brandbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 28px 48px 22px;
+  border-bottom: 2px solid var(--ink);
+}
+.brandbar .mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.brandbar .title-block { display: flex; flex-direction: column; gap: 2px; }
+.brandbar .title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0;
+}
+.brandbar .subtitle {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.brandbar .meta {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.brandbar .meta .sheet-no {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  display: block;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   refStrip  ·  引用条（唯一使用 accent-soft 的位置）
+   ============================================================ */
+
+.ref-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--line);
+}
+.ref-strip > div {
+  padding: 14px 18px;
+  border-right: 1px solid var(--line);
+}
+.ref-strip > div:last-child { border-right: none; }
+.ref-strip .ref-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.ref-strip .ref-value {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  word-break: break-all;
+}
+
+/* ============================================================
+   Control strip  ·  控制条（在 refStrip 下方独立）
+   ============================================================ */
+
+.control-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 48px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+.control-strip .ctrl-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.control-strip select,
+.control-strip button {
+  font-family: var(--font-body);
+  font-size: 13px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 120ms;
+}
+.control-strip select {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 5px 28px 5px 10px;
+  cursor: default;
+}
+.control-strip button:hover { background: var(--bg); }
+.control-strip button:disabled { opacity: 0.4; cursor: not-allowed; }
+.control-strip button.primary {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.control-strip button.primary:hover { background: #2a2823; }
+.control-strip .spacer { flex: 1; }
+
+/* ============================================================
+   Notice (no-GPU banner)  ·  墨黑实色横杠风格
+   ============================================================ */
+
+.notice {
+  margin: 24px 48px 0;
+  padding: 14px 18px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 14px;
+}
+.notice strong {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 4px;
+  color: var(--paper);
+  opacity: 0.85;
+}
+
+/* ============================================================
+   Section  ·  reportCard 分组
+   ============================================================ */
+
+.section {
+  padding: 24px 48px 28px;
+  border-bottom: 1px solid var(--line);
+}
+.section:last-of-type { border-bottom: none; }
+.section-title {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* ============================================================
+   Cards row  ·  statTile  ·  KPI 卡片
+   ============================================================ */
+
+.cards-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.gpu-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.gpu-card[data-level="low"]  { border-left-color: var(--series-3); }
+.gpu-card[data-level="mid"]  { border-left-color: var(--series-1); }
+.gpu-card[data-level="high"] { border-left-color: var(--series-0); }
+
+.gc-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.gc-tag {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.gc-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gc-kpi {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 2px;
+}
+.gc-kpi-value {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.gc-kpi-unit {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--muted);
+  margin-left: 2px;
+}
+.gc-kpi-cap {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.gc-bar {
+  height: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.gc-bar-fill {
+  height: 100%;
+  background: var(--series-1);
+  transition: width 250ms ease-out;
+}
+.gpu-card[data-level="low"]  .gc-bar-fill { background: var(--series-3); }
+.gpu-card[data-level="mid"]  .gc-bar-fill { background: var(--series-1); }
+.gpu-card[data-level="high"] .gc-bar-fill { background: var(--series-0); }
+
+.gc-kv {
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  font-size: 12px;
+}
+.gc-kv dt {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  align-self: center;
+}
+.gc-kv dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* ============================================================
+   Charts grid  ·  2x2 chart cards
+   ============================================================ */
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.chart-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+.chart-card h3 {
+  margin: 0 0 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+.chart-card canvas {
+  width: 100%;
+  height: 180px;
+  display: block;
+}
+
+/* ============================================================
+   Process table
+   ============================================================ */
+
+.process-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.process-table th {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--ink);
+  background: var(--paper);
+}
+.process-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.process-table td:nth-child(1),
+.process-table td:nth-child(2),
+.process-table td:nth-child(4) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+.process-table td:nth-child(3) {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.process-table tr:last-child td { border-bottom: none; }
+.process-table .empty-row td {
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
+  padding: 20px;
+}
+
+/* ============================================================
+   Statusbar  ·  底部
+   ============================================================ */
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 48px;
+  border-top: 2px solid var(--ink);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.statusbar .sep { color: var(--line); }
+.statusbar .val {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  font-weight: 500;
+}
+.statusbar .badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.statusbar .badge::before {
+  content: "○";
+  color: var(--muted);
+  font-size: 11px;
+}
+.statusbar .badge.connected::before { content: "●"; color: var(--accent); }
+.statusbar .badge.connecting::before { content: "◌"; color: var(--muted); }
+.statusbar .badge.disconnected::before { content: "○"; color: var(--muted); }
+
+/* ============================================================
+   Responsive  ·  ≤720px 单列 + 圆角归零
+   ============================================================ */
+
+@media (max-width: 720px) {
+  .sheet { margin: 0; max-width: 100%; }
+  .brandbar {
+    grid-template-columns: auto 1fr;
+    padding: 20px 18px 16px;
+    border-radius: 0;
+  }
+  .brandbar .meta { grid-column: 1 / -1; text-align: left; }
+  .ref-strip { grid-template-columns: repeat(2, 1fr); border-radius: 0; }
+  .ref-strip > div:nth-child(odd) { border-right: 1px solid var(--line); }
+  .ref-strip > div:nth-child(even) { border-right: none; }
+  .ref-strip > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  .control-strip { padding: 14px 18px; border-radius: 0; }
+  .notice { margin: 16px 18px 0; border-radius: 0; }
+  .section { padding: 18px 18px 22px; }
+  .cards-row { grid-template-columns: 1fr; }
+  .charts-grid { grid-template-columns: 1fr; }
+  .statusbar { padding: 10px 18px; }
+  /* 圆角归零 */
+  .gpu-card,
+    .chart-card,
+    .control-strip button,
+    .control-strip select,
+    .gc-bar,
+    .gc-bar-fill,
+    .statusbar .badge {
+    border-radius: 0;
+  }
+}
