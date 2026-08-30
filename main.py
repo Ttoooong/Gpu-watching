@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 
 import uvicorn
 
@@ -40,10 +41,17 @@ def main() -> int:
     # Tell the FastAPI app whether to start the sampler at startup.
     # IMPORTANT: this must run inside uvicorn's event loop, so it's wired
     # via @app.on_event("startup") in web/server.py — NOT here.
+    # The env var carries the same flag across uvicorn's --reload child
+    # process, which re-imports web.server and never sees this assignment.
+    os.environ["GPU_MONITOR_AUTO_START"] = "0" if args.no_auto else "1"
     ws.auto_start = not args.no_auto
 
+    # reload=True requires an import string; passing the app object makes
+    # uvicorn warn and silently disable reloading.
+    target = "web.server:app" if args.reload else ws.app
+
     uvicorn.run(
-        ws.app,
+        target,
         host=args.host,
         port=args.port,
         log_level="info",

@@ -3,122 +3,220 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GPU Monitor — 实时监控报表</title>
+  <title>GPU Watching</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
-<body>
+<body data-mode="live">
 
-<article class="sheet" aria-label="GPU 监控报表">
+<div class="app-shell">
 
-  <!-- ─── Brandbar ────────────────────────────────────────── -->
-  <header class="brandbar">
-    <div class="mark" aria-hidden="true">G</div>
-    <div class="title-block">
-      <h1 class="title">GPU Monitor</h1>
-      <span class="subtitle">Real-time monitoring · 实时监控报表</span>
+  <!-- ─── Sidebar ──────────────────────────────────────────── -->
+  <aside class="sidebar" aria-label="Primary navigation">
+    <div class="brand">
+      <span class="brand-mark">G</span>
+      <span class="brand-text">GPU Watching</span>
     </div>
-    <div class="meta">
-      Sheet №&nbsp;<span class="sheet-no" id="sheetNo">—</span>
-      <div id="sheetDate">—</div>
-    </div>
-  </header>
 
-  <!-- ─── Ref Strip（仅 accent-soft 出现处）───────────────── -->
-  <section class="ref-strip" aria-label="元信息">
-    <div>
-      <div class="ref-label">Driver · 驱动版本</div>
-      <div class="ref-value" id="sbDriver">—</div>
-    </div>
-    <div>
-      <div class="ref-label">GPUs · 卡数</div>
-      <div class="ref-value" id="sbCount">—</div>
-    </div>
-    <div>
-      <div class="ref-label">Interval · 采样间隔</div>
-      <div class="ref-value" id="sbInterval">—</div>
-    </div>
-    <div>
-      <div class="ref-label">CSV · 日志文件</div>
-      <div class="ref-value" id="sbFile">—</div>
-    </div>
-  </section>
+    <nav class="nav">
+      <div class="nav-section">Infrastructure</div>
+      <a class="nav-item active" data-nav="live">
+        <span class="nav-glyph" aria-hidden="true">▦</span>
+        <span class="nav-text">Dashboard</span>
+      </a>
+      <a class="nav-item" data-nav="history">
+        <span class="nav-glyph" aria-hidden="true">◷</span>
+        <span class="nav-text">History</span>
+      </a>
 
-  <!-- ─── Control Strip ───────────────────────────────────── -->
-  <div class="control-strip">
-    <span class="ctrl-label">Controls · 控制</span>
-    <select id="interval" aria-label="采样间隔">
-      <option value="500">0.5 s</option>
-      <option value="1000" selected>1.0 s</option>
-      <option value="2000">2.0 s</option>
-      <option value="5000">5.0 s</option>
-      <option value="10000">10.0 s</option>
-    </select>
-    <button id="toggleBtn" class="primary" type="button">Pause · 暂停</button>
-    <button id="clearBtn" type="button">Clear · 清空图表</button>
-    <button id="exportBtn" type="button">Export · 导出 CSV</button>
-    <span class="spacer"></span>
+      <div class="nav-section">System</div>
+      <a class="nav-item" data-nav="settings">
+        <span class="nav-glyph" aria-hidden="true">⚙</span>
+        <span class="nav-text">Settings</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      v1.0 · <span id="footerDriver">—</span>
+    </div>
+  </aside>
+
+  <!-- ─── Main column ─────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-title">
+        <h1 id="topbarHeading">Overview</h1>
+      </div>
+      <div class="topbar-meta">
+        <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">—</span></span>
+        <span><span class="sep">·</span> <span id="tbGpus">—</span></span>
+        <span><span class="sep">·</span> Driver <span class="val" id="tbDriver">—</span></span>
+        <span><span class="sep">·</span> Last <span class="val" id="tbLast">—</span></span>
+      </div>
+    </header>
+
+    <!-- Scrollable content -->
+    <main class="content">
+
+      <!-- ─── History viewer (only in history mode) ───────── -->
+      <div id="historyPanel" class="control-strip history-panel" hidden>
+        <span class="ctrl-label">History</span>
+        <label class="hist-time"><span>Source</span>
+          <select id="histSource" aria-label="Source">
+            <option value="gpu" selected>GPU</option>
+            <option value="system">System</option>
+          </select>
+        </label>
+        <select id="histDate" aria-label="Date"></select>
+        <label class="hist-time"><span>From</span><input id="histStart" type="time" step="60" /></label>
+        <label class="hist-time"><span>To</span><input id="histEnd" type="time" step="60" /></label>
+        <label class="hist-time"><span>GPU</span>
+          <select id="histGpu"><option value="">All</option></select>
+        </label>
+        <button id="histApply" class="primary" type="button">Apply</button>
+        <button id="histRefresh" type="button">Refresh</button>
+        <span class="spacer"></span>
+        <span class="hist-status" id="histStatus">—</span>
+      </div>
+
+      <!-- ─── Sampling strip (only in live mode) ──────────── -->
+      <div class="control-strip live-only">
+        <span class="ctrl-label">Sampling</span>
+        <select id="interval" aria-label="Interval">
+          <option value="500">0.5 s</option>
+          <option value="1000" selected>1.0 s</option>
+          <option value="2000">2.0 s</option>
+          <option value="5000">5.0 s</option>
+          <option value="10000">10.0 s</option>
+        </select>
+        <button id="toggleBtn" class="primary" type="button">Pause</button>
+        <button id="clearBtn" type="button">Clear</button>
+        <button id="exportBtn" type="button">Export CSV</button>
+        <span class="spacer"></span>
+        <span class="ctrl-label">CSV</span>
+        <span class="val" id="tbCsv" style="font-family:var(--font-mono);font-size:11.5px;color:var(--text-2)">—</span>
+      </div>
+
+      <!-- ─── No-GPU notice (sits above everything else) ─── -->
+      <section id="noGpuNotice" class="notice live-only" hidden>
+        <strong>Notice</strong>
+        No NVIDIA GPU detected. This program requires an NVIDIA card with the proprietary driver installed.
+      </section>
+
+      <!-- ─── System health (always visible) ────────────── -->
+      <section class="section" aria-label="System health">
+        <h2 class="section-title">System</h2>
+        <div id="sysCardsRow" class="cards-row sys-cards-row"></div>
+      </section>
+
+      <!-- ─── KPI / GPU Cluster (live only) ──────────────── -->
+      <section class="section live-only" aria-label="GPU cluster">
+        <h2 class="section-title">
+          GPU Cluster
+          <span class="section-hint" id="kpiHint" hidden>Click a card to focus</span>
+        </h2>
+        <div id="cardsRow" class="cards-row"></div>
+      </section>
+
+      <!-- ─── Charts (both modes) ────────────────────────── -->
+      <section class="section" aria-label="Performance charts">
+        <h2 class="section-title">
+          Performance
+          <span class="section-hint" id="chartScope"></span>
+        </h2>
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <h3>GPU Utilization</h3>
+              <span class="live-now" id="chartUtilNow">—</span>
+            </div>
+            <canvas id="chartUtil"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <h3>VRAM Usage</h3>
+              <span class="live-now" id="chartMemNow">—</span>
+            </div>
+            <canvas id="chartMem"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <h3>Power Draw</h3>
+              <span class="live-now" id="chartPowerNow">—</span>
+            </div>
+            <canvas id="chartPower"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <h3>Temperature</h3>
+              <span class="live-now" id="chartTempNow">—</span>
+            </div>
+            <canvas id="chartTemp"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── System charts (always visible) ─────────────── -->
+      <section class="section" aria-label="System charts">
+        <h2 class="section-title">
+          System Trends
+          <span class="section-hint" id="sysChartScope"></span>
+        </h2>
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <h3>CPU</h3>
+              <span class="live-now" id="sysChartCpuNow">—</span>
+            </div>
+            <canvas id="chartSysCpu"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <h3>Memory</h3>
+              <span class="live-now" id="sysChartMemNow">—</span>
+            </div>
+            <canvas id="chartSysMem"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <h3>Disk</h3>
+              <span class="live-now" id="sysChartDiskNow">—</span>
+            </div>
+            <canvas id="chartSysDisk"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <h3>Network</h3>
+              <span class="live-now" id="sysChartNetNow">—</span>
+            </div>
+            <canvas id="chartSysNet"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Process table (live only) ──────────────────── -->
+      <section class="section live-only" aria-label="Processes">
+        <h2 class="section-title">Processes</h2>
+        <table class="process-table">
+          <thead>
+            <tr>
+              <th>GPU</th>
+              <th>PID</th>
+              <th>Process</th>
+              <th style="text-align:right">VRAM (MB)</th>
+            </tr>
+          </thead>
+          <tbody id="procBody"></tbody>
+        </table>
+      </section>
+
+    </main>
   </div>
-
-  <!-- ─── Notice (no GPU) ─────────────────────────────────── -->
-  <section id="noGpuNotice" class="notice" hidden>
-    <strong>Notice · 系统提示</strong>
-    未检测到 NVIDIA GPU 或驱动。本程序需要 NVIDIA 显卡 + 已安装的 NVIDIA 驱动。
-  </section>
-
-  <!-- ─── KPI Tiles ───────────────────────────────────────── -->
-  <section class="section" aria-label="KPI 卡片">
-    <h2 class="section-title">KPI · 关键指标</h2>
-    <div id="cardsRow" class="cards-row"></div>
-  </section>
-
-  <!-- ─── Charts ──────────────────────────────────────────── -->
-  <section class="section" aria-label="实时曲线">
-    <h2 class="section-title">Charts · 实时曲线</h2>
-    <div class="charts-grid">
-      <div class="chart-card">
-        <h3>GPU Utilization %</h3>
-        <canvas id="chartUtil"></canvas>
-      </div>
-      <div class="chart-card">
-        <h3>Memory Usage · 显存 (MB)</h3>
-        <canvas id="chartMem"></canvas>
-      </div>
-      <div class="chart-card">
-        <h3>Power Draw · 功率 (W)</h3>
-        <canvas id="chartPower"></canvas>
-      </div>
-      <div class="chart-card">
-        <h3>Temperature · 温度 (°C)</h3>
-        <canvas id="chartTemp"></canvas>
-      </div>
-    </div>
-  </section>
-
-  <!-- ─── Process Table ───────────────────────────────────── -->
-  <section class="section" aria-label="进程列表">
-    <h2 class="section-title">Processes · 进程列表</h2>
-    <table class="process-table">
-      <thead>
-        <tr>
-          <th>GPU</th>
-          <th>PID</th>
-          <th>Process · 进程</th>
-          <th>Memory · 显存 (MB)</th>
-        </tr>
-      </thead>
-      <tbody id="procBody"></tbody>
-    </table>
-  </section>
-
-  <!-- ─── Statusbar ───────────────────────────────────────── -->
-  <footer class="statusbar" aria-label="状态栏">
-    <span>Last Update · 上次刷新 <span class="val" id="sbLast">—</span></span>
-    <span class="sep">·</span>
-    <span>Local CSV Logger · 本地 CSV 日志</span>
-    <span class="badge disconnected" id="sbConnection">Disconnected</span>
-  </footer>
-
-</article>
+</div>
 
 <script src="/static/app.js"></script>
 </body>
