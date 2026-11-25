@@ -20,7 +20,18 @@
       cssVar("--series-2"),                // 嫩绿
       cssVar("--series-3"),                // 浅绿
     ],
+    // System charts get their own blue family so the host section reads as a
+    // different family from the GPU cluster.
+    sys: [
+      cssVar("--sys-0"),
+      cssVar("--sys-1"),
+    ],
   };
+
+  // Canvas must not depend on the webfont stack being loaded — fall back to
+  // the platform's UI font, which is what the CSS uses too.
+  const FONT_UI = '11px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  const FONT_MONO = '11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
   // ---- DOM ----
   const $ = (id) => document.getElementById(id);
@@ -69,6 +80,15 @@
     sysChartMemNow:  $("sysChartMemNow"),
     sysChartDiskNow: $("sysChartDiskNow"),
     sysChartNetNow:  $("sysChartNetNow"),
+
+    // GPU-only sections (hidden entirely when no GPU is present)
+    gpuSection:      $("gpuSection"),
+    gpuChartsSection: $("gpuChartsSection"),
+    processSection:  $("processSection"),
+    tbGpuMeta:       $("tbGpuMeta"),
+    tbDriverMeta:    $("tbDriverMeta"),
+    footerSep:       $("footerSep"),
+    topbarHeading:   $("topbarHeading"),
   };
 
   // ---- app state ----
@@ -81,6 +101,7 @@
     visible: new Set(),
     cards: [],
     charts: {},
+    gpuCharts: [],
     sse: null,
     mode: "live",         // "live" | "history"
     liveStatsTimer: null,
@@ -190,7 +211,7 @@
       const { ctx, _w: w, _h: h } = this;
       ctx.clearRect(0, 0, w, h);
 
-      const padL = 50, padR = 14, padT = 12, padB = 22;
+      const padL = 52, padR = 16, padT = 14, padB = 26;
       const plotW = w - padL - padR;
       const plotH = h - padT - padB;
 
@@ -200,8 +221,20 @@
         xMax = this.opts.xMax;
       } else {
         const now = Date.now() / 1000;
-        xMin = now - this.opts.windowSec;
         xMax = now;
+        xMin = now - this.opts.windowSec;
+        // 刚启动时数据不足一个窗口，固定 300s 会在左侧留下大片空白。
+        // 把窗口起点收到最早的那个点，让曲线铺满绘图区。
+        let earliest = Infinity;
+        for (const s of this.series) {
+          if (!s || !s.visible || !s.points.length) continue;
+          for (const p of s.points) {
+            if (p.x < earliest) earliest = p.x;
+          }
+        }
+        if (Number.isFinite(earliest) && earliest > xMin) {
+          xMin = Math.max(earliest, now - this.opts.windowSec);
+        }
       }
 
       let yMin = this.opts.ymin;
@@ -219,7 +252,7 @@
       }
 
       // ---- grid + axes ----
-      ctx.font = '10px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+      ctx.font = FONT_MONO;
       ctx.fillStyle = TOKENS.axisText;
       ctx.strokeStyle = TOKENS.grid;
       ctx.lineWidth = 1;
@@ -236,7 +269,7 @@
         ctx.stroke();
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
-        ctx.fillText(this.opts.yLabelFmt(yVal), padL - 4, py);
+        ctx.fillText(this.opts.yLabelFmt(yVal), padL - 8, py);
       }
 
       const xTicks = 3;
@@ -248,10 +281,11 @@
         if (this.opts.xMode === "fixed") {
           // 历史：显示绝对时间 HH:MM
           const xv = xMin + (xMax - xMin) * t;
-          ctx.fillText(_fmtClock(xv), px, padT + plotH + 4);
+          ctx.fillText(_fmtClock(xv), px, padT + plotH + 7);
         } else {
-          const xOff = -this.opts.windowSec * (1 - t);
-          ctx.fillText(xOff === 0 ? "now" : `${(-xOff).toFixed(0)}s`, px, padT + plotH + 4);
+          // 相对"now"的秒数，按实际窗口跨度算（启动初期窗口比 300s 短）
+          const secsAgo = (xMax - xMin) * (1 - t);
+          ctx.fillText(secsAgo === 0 ? "now" : `${secsAgo.toFixed(0)}s`, px, padT + plotH + 7);
         }
       }
 
@@ -262,8 +296,36 @@
       for (const s of this.series) {
         if (!s || !s.visible || s.points.length === 0) continue;
         ctx.strokeStyle = s.color;
-        ctx.lineWidth = 1.6;
+        ctx.lineWidth = 1.8;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
         ctx.setLineDash(s.dash || []);   // 颜色用尽后靠线型区分（>4 张卡）
+
+        // 先铺一层极淡的面积填充，曲线在深色背景上更有体积感。
+        const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+        grad.addColorStop(0, s.color);
+        grad.addColorStop(1, "transparent");
+        ctx.globalAlpha = 0.13;
+        ctx.beginPath();
+        let first = true;
+        let lastX = padL, lastY = padT + plotH;
+        for (const p of s.points) {
+          if (p.y == null || Number.isNaN(p.y)) continue;
+          const px = xToPx(p.x);
+          const py = yToPx(p.y);
+          if (first) { ctx.moveTo(px, py); first = false; }
+          else { ctx.lineTo(px, py); }
+          lastX = px; lastY = py;
+        }
+        if (!first) {
+          ctx.lineTo(lastX, padT + plotH);
+          ctx.lineTo(xToPx(s.points[0].x), padT + plotH);
+          ctx.closePath();
+          ctx.fillStyle = grad;
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
         ctx.beginPath();
         let started = false;
         for (const p of s.points) {
@@ -278,13 +340,13 @@
       ctx.setLineDash([]);
 
       // ---- legend ----
-      ctx.font = '10px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+      ctx.font = FONT_UI;
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       this._legendBoxes = [];
       const legendX0 = padL + 4;
       const legendRight = padL + plotW;
-      const rowH = 14;
+      const rowH = 15;
       const maxRows = 3;
       let lx = legendX0;
       let ly = padT + 2;
@@ -292,7 +354,7 @@
         const s = this.series[i];
         if (!s || !s.name) continue;
         const textW = ctx.measureText(s.name).width;
-        const itemW = textW + 18;
+        const itemW = textW + 20;
         // 放不下就换行。（此处曾误把文字宽度当画布宽度比，导致第一条之后
         // 立刻 break，多卡时图例永远只显示 GPU 0。）
         if (lx + itemW > legendRight && lx > legendX0) {
@@ -301,24 +363,36 @@
           if (ly > padT + 2 + rowH * (maxRows - 1)) break;
         }
 
-        ctx.globalAlpha = s.visible ? 1 : 0.35;
+        ctx.globalAlpha = s.visible ? 1 : 0.4;
         ctx.fillStyle = s.color || TOKENS.legendText;
-        ctx.fillRect(lx, ly + 4, 8, 8);
+        ctx.fillRect(lx, ly + 3, 9, 9);
         ctx.fillStyle = TOKENS.legendText;
-        ctx.fillText(s.name, lx + 11, ly + 8);
+        ctx.fillText(s.name, lx + 13, ly + 8);
         if (!s.visible) {
           // 删除线：表示该条曲线已被点掉
           ctx.strokeStyle = TOKENS.legendText;
           ctx.lineWidth = 1;
           ctx.beginPath();
-          ctx.moveTo(lx + 11, ly + 8);
-          ctx.lineTo(lx + 11 + textW, ly + 8);
+          ctx.moveTo(lx + 13, ly + 8);
+          ctx.lineTo(lx + 13 + textW, ly + 8);
           ctx.stroke();
         }
         ctx.globalAlpha = 1;
 
         this._legendBoxes.push({ index: i, x: lx, y: ly, w: itemW, h: rowH });
         lx += itemW;
+      }
+
+      // ---- empty state ----
+      const hasData = this.series.some(
+        (s) => s && s.visible && s.points.some((p) => p.y != null && !Number.isNaN(p.y))
+      );
+      if (!hasData) {
+        ctx.font = FONT_UI;
+        ctx.fillStyle = TOKENS.axisText;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Waiting for data…", padL + plotW / 2, padT + plotH / 2);
       }
     }
   }
@@ -463,7 +537,7 @@
       extraKV: [
         ["CORES", "—"], ["FREQ", "— MHz"],
       ],
-      extraBottom: true,   // 在主 bar 下方加 per-core 条纹
+      extraBottom: true,   // 卡片底部加 per-core 条纹
     });
     refs.mem = makeSysCard({
       tag: "MEMORY",
@@ -500,16 +574,14 @@
         extraKV.map(([k, v]) => `<dt class="k">${k}</dt><dd class="v">${v}</dd>`).join("")
       }</dl>`;
     }
-    let bottom = "";
-    if (extraBottom) {
-      bottom = `<div class="cpu-cores"></div>`;
-    }
-    if (isNetwork) {
-      bottom = `<dl class="sys-net-dl">
-        <dt class="k rx">DOWN</dt><dd class="v rx">— MB/s</dd>
-        <dt class="k tx">UP</dt><dd class="v tx">— MB/s</dd>
-      </dl>`;
-    }
+    // per-core 条纹放在卡片最底部，这样四张卡的 bar / KV 行才能横向对齐
+    const coresHtml = extraBottom ? `<div class="cpu-cores"></div>` : "";
+    const netHtml = isNetwork
+      ? `<dl class="sys-net-dl">
+          <dt class="k rx">DOWN</dt><dd class="v rx">— MB/s</dd>
+          <dt class="k tx">UP</dt><dd class="v tx">— MB/s</dd>
+        </dl>`
+      : "";
     root.innerHTML = `
       <div class="sys-card-head">
         <span class="sys-card-tag">${tag}</span>
@@ -519,9 +591,9 @@
         <span class="value">—</span><span class="unit">${unit}</span>
         <span class="cap">${cap}</span>
       </div>
-      ${extraBottom ? bottom : ""}
       <div class="sys-bar"><div class="sys-bar-fill" style="width:0%"></div></div>
-      ${isNetwork ? bottom : kvHtml}
+      ${coresHtml}
+      ${isNetwork ? netHtml : kvHtml}
     `;
     return {
       root,
@@ -530,8 +602,11 @@
       barFill:   root.querySelector(".sys-bar-fill"),
       kvCells:   [...root.querySelectorAll(".sys-kv .v")],
       cores:     root.querySelector(".cpu-cores"),
-      netRx:     root.querySelector(".sys-net-dl .rx .v"),
-      netTx:     root.querySelector(".sys-net-dl .tx .v"),
+      // The <dt class="k rx"> / <dd class="v rx"> pairs are siblings, so the
+      // value cell must be matched as ".rx.v" — ".rx .v" (descendant) finds
+      // nothing and left netRx null, which threw on every live sample.
+      netRx:     root.querySelector(".sys-net-dl .rx.v"),
+      netTx:     root.querySelector(".sys-net-dl .tx.v"),
       _kvLabels: extraKV ? extraKV.map(([k]) => k) : [],
     };
   }
@@ -554,8 +629,9 @@
           refs.cpu.cores.innerHTML = cores.map(() => `<div class="core" style="height:4px"></div>`).join("");
         }
         const max = Math.max(...cores, 1);
+        // 24px 是 .cpu-cores 的轨道高度，留 2px 余量避免顶部被裁切
         [...refs.cpu.cores.children].forEach((el, i) => {
-          el.style.height = `${Math.max(4, (cores[i] / max) * 26)}px`;
+          el.style.height = `${Math.max(4, (cores[i] / max) * 22)}px`;
         });
       }
       // KV: FREQ, CORES
@@ -657,21 +733,30 @@
     state.charts.power = new LineChart($("chartPower"), { ...common, ymin: 0, ymax: null });
     state.charts.temp  = new LineChart($("chartTemp"),  { ...common, ymin: 0, ymax: 100 });
 
-    // System charts —— 单条曲线（系统是单一对象），用系列 0（深绿）
-    // rx/tx 双线：rx = 系列 0，tx = 系列 2，避免主绿色被两条同样的线覆盖。
-    const sysNetColorRx = TOKENS.series[0];
-    const sysNetColorTx = TOKENS.series[2];
+    // System charts —— 单条曲线（系统是单一对象），用蓝色系单独成族，
+    // 和 GPU 集群的绿色系区分开。
+    const sysNetColorRx = TOKENS.sys[0];
+    const sysNetColorTx = TOKENS.sys[1];
     const noLegend = { onLegendToggle: () => {} };
     state.charts.sysCpu  = new LineChart($("chartSysCpu"),  { ...noLegend, ymin: 0, ymax: 100 });
     state.charts.sysMem  = new LineChart($("chartSysMem"),  { ...noLegend, ymin: 0, ymax: 100 });
     state.charts.sysDisk = new LineChart($("chartSysDisk"), { ...noLegend, ymin: 0, ymax: 100 });
-    state.charts.sysNet  = new LineChart($("chartSysNet"),  { ...noLegend, ymin: 0, ymax: null });
+    // Network runs in fractions of MB/s — integer ticks would render as
+    // "0 0 1 1" and read as noise.
+    state.charts.sysNet  = new LineChart($("chartSysNet"),  { ...noLegend, ymin: 0, ymax: null,
+                                                             yLabelFmt: (v) => v.toFixed(2) });
 
-    state.charts.sysCpu.setSeries(0, "CPU %",     TOKENS.series[0], []);
-    state.charts.sysMem.setSeries(0, "Mem %",     TOKENS.series[0], []);
-    state.charts.sysDisk.setSeries(0, "Disk %",   TOKENS.series[0], []);
+    state.charts.sysCpu.setSeries(0, "CPU %",     TOKENS.sys[0], []);
+    state.charts.sysMem.setSeries(0, "Mem %",     TOKENS.sys[0], []);
+    state.charts.sysDisk.setSeries(0, "Disk %",   TOKENS.sys[0], []);
     state.charts.sysNet.setSeries(0, "RX MB/s",   sysNetColorRx, []);
     state.charts.sysNet.setSeries(1, "TX MB/s",   sysNetColorTx, []);
+
+    // GPU charts are the only ones whose series are indexed by GPU index.
+    // System charts reuse series 0/1 for their own metrics, so applying GPU
+    // visibility to them would hide the CPU / Mem / Disk / RX lines whenever
+    // GPU 0 was toggled off.
+    state.gpuCharts = [state.charts.util, state.charts.mem, state.charts.power, state.charts.temp];
   }
 
   // 把 epoch 秒转成 HH:MM（24h 本地）。跨天会自动带日期。
@@ -716,7 +801,8 @@
     const focused = state.visible.size === 1;
     state.gpuNames.forEach((_, i) => {
       const on = state.visible.has(i);
-      for (const chart of Object.values(state.charts)) chart.toggle(i, on);
+      // Only the GPU charts are indexed by GPU index — see setupCharts().
+      for (const chart of state.gpuCharts) chart.toggle(i, on);
       const card = state.cards[i];
       if (!card) return;
       card.root.dataset.hidden = on ? "false" : "true";
@@ -761,7 +847,9 @@
       const dash = DASHES[Math.floor(i / TOKENS.series.length) % DASHES.length];
       const short = shortGpuName(name);
       const label = short ? `GPU ${i} · ${short}` : `GPU ${i}`;
-      for (const chart of Object.values(state.charts)) {
+      // GPU charts only — writing into the system charts would relabel their
+      // series (CPU %, RX MB/s, ...) with GPU names.
+      for (const chart of state.gpuCharts) {
         chart.setSeries(i, label, color, dash);
       }
     });
@@ -956,6 +1044,7 @@
     if (state.mode === next) return;
     state.mode = next;
     document.body.dataset.mode = next;
+    els.topbarHeading.textContent = next === "history" ? "Overview" : "Dashboard";
     // 同步 sidebar 选中态
     els.navItems.forEach((el) => {
       el.classList.toggle("active", el.dataset.nav === next);
@@ -967,6 +1056,17 @@
       els.historyPanel.hidden = true;
       enterLive();
     }
+  }
+
+  /** GPU 段是否可见：实时模式无 GPU 时隐藏；历史模式始终显示
+   *  （历史 CSV 里可能有 GPU 数据）。 */
+  function syncGpuSections() {
+    const show = state.mode === "history" || state.available;
+    els.gpuChartsSection.hidden = !show;
+    // GPU 卡片行只在 live 模式有意义（body[data-mode] 已隐藏 live-only）。
+    els.gpuSection.hidden = !state.available;
+    // 进程表按 GPU 维度组织，无 GPU 时没有内容可列。
+    els.processSection.hidden = !state.available;
   }
 
   function enterHistory() {
@@ -981,6 +1081,7 @@
     for (const chart of Object.values(state.charts)) {
       chart.opts.xMode = "fixed";
     }
+    syncGpuSections();
     // 切到历史模式时刷新一次日期列表
     refreshHistoryDates().then(() => {
       // 默认选最近一份文件 + 整天，立即查询
@@ -995,6 +1096,9 @@
     }
     state.visible = new Set(state.gpuNames.map((_, i) => i));
     applyVisibility();
+    syncGpuSections();
+    // 清掉上一轮历史查询留下的时间窗说明
+    els.sysChartScope.textContent = "";
     // 重新拿 ring buffer + 重连 SSE
     rehydrateLive();
     connectSSE();
@@ -1195,6 +1299,11 @@
     els.tbGpus.textContent = s.gpu_count != null
       ? `${s.gpu_count} GPU${s.gpu_count === 1 ? "" : "s"}`
       : "—";
+    // 无 GPU 时，"0 GPUs · Driver N/A" 是无意义的信息，直接隐藏
+    els.tbGpuMeta.hidden = !s.available;
+    els.tbDriverMeta.hidden = !s.available;
+    els.footerSep.hidden = !s.available;
+    els.footerDriver.hidden = !s.available;
 
     if (s.current_csv) {
       els.tbCsv.textContent = s.current_csv.split(/[/\\]/).pop();
@@ -1215,6 +1324,7 @@
       els.noGpuNotice.hidden = false;
       els.cardsRow.innerHTML = "";
       state.cards = [];
+      syncGpuSections();
       // status pill 仍根据 running 状态着色；离线无信号
       if (!state.running) {
         els.statusText.textContent = "Idle";
@@ -1224,6 +1334,7 @@
     }
 
     els.noGpuNotice.hidden = true;
+    syncGpuSections();
     els.statusText.textContent = state.running ? "Streaming" : "Paused";
     els.statusPill.className = "status-pill " + (state.running ? "ok" : "warn");
 

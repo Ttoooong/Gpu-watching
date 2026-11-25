@@ -293,20 +293,28 @@ def _parse_window(date: str, start: Optional[str], end: Optional[str]) -> tuple:
         d = datetime.strptime(date, "%Y-%m-%d").date()
     except ValueError:
         raise HTTPException(400, f"无法解析日期: {date}")
-    if start and len(start) <= 8:
-        sh, sm = start.split(":")
-        s = datetime(d.year, d.month, d.day, int(sh), int(sm))
-    elif start:
-        s = datetime.fromisoformat(start)
-    else:
-        s = datetime(d.year, d.month, d.day)
-    if end and len(end) <= 8:
-        eh, em = end.split(":")
-        e = datetime(d.year, d.month, d.day, int(eh), int(em), 59)
-    elif end:
-        e = datetime.fromisoformat(end)
-    else:
-        e = datetime(d.year, d.month, d.day, 23, 59, 59)
+
+    def _boundary(raw: Optional[str], fallback_h: int, fallback_m: int, fallback_s: int) -> datetime:
+        """Parse a window edge as HH:MM[:SS] (local time) or a full ISO stamp."""
+        if not raw:
+            return datetime(d.year, d.month, d.day, fallback_h, fallback_m, fallback_s)
+        # HH:MM or HH:MM:SS — "HH:MM:SS" is 8 chars, so a plain length check
+        # would send it down the 2-tuple branch and raise ValueError.
+        parts = raw.split(":")
+        if len(parts) in (2, 3) and all(p.isdigit() for p in parts):
+            hh, mm = int(parts[0]), int(parts[1])
+            ss = int(parts[2]) if len(parts) == 3 else 0
+            try:
+                return datetime(d.year, d.month, d.day, hh, mm, ss)
+            except ValueError:
+                raise HTTPException(400, f"无法解析时间: {raw}")
+        try:
+            return datetime.fromisoformat(raw)
+        except ValueError:
+            raise HTTPException(400, f"无法解析时间: {raw}")
+
+    s = _boundary(start, 0, 0, 0)
+    e = _boundary(end, 23, 59, 59)
     if s >= e:
         raise HTTPException(400, "start 必须早于 end")
     return s, e

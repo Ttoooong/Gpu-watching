@@ -99,13 +99,26 @@ class CSVLogger:
         new_file = not path.exists()
         self._sys_file = open(path, "a", newline="", buffering=1)
         self._sys_writer = csv.writer(self._sys_file)
-        # 决定列数：若文件已存在，沿用旧 header 的核数，避免和之前不一致
-        # 的行混进同一个文件里。这里用传入的 n_cores，仅当新文件生效。
         if new_file:
             self._sys_writer.writerow(_sys_header(n_cores))
             self._sys_file.flush()
-        self._sys_n_cols = len(_sys_header(n_cores))
+            self._sys_n_cols = len(_sys_header(n_cores))
+        else:
+            # The file already exists — its header was written with whatever
+            # core count was live back then. Re-read it so later rows stay
+            # aligned with the header instead of the current core count.
+            self._sys_n_cols = self._read_sys_header_cols(path) or len(_sys_header(n_cores))
         self._sys_current_date = d
+
+    @staticmethod
+    def _read_sys_header_cols(path: Path) -> int:
+        """Column count of an existing system CSV, read from its header row."""
+        try:
+            with open(path, "r", newline="") as f:
+                header = next(csv.reader(f), None)
+            return len(header) if header else 0
+        except OSError:
+            return 0
 
     def _close(self) -> None:
         if self._file is not None:
@@ -180,10 +193,7 @@ class CSVLogger:
         ts = when or datetime.now()
         d = ts.date()
         n_cores = len(s.cpu_per_core)
-        # 如果当天文件已开但核数变了（理论上不会发生），强制关掉重开
         if self._sys_current_date != d:
-            self._open_sys_for(d, n_cores)
-        elif self._sys_n_cols > 0 and n_cores > 0 and self._sys_n_cols != len(_sys_header(n_cores)):
             self._open_sys_for(d, n_cores)
         if self._sys_writer is None:
             self._open_sys_for(d, n_cores)
