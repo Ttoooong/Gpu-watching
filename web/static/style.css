@@ -524,15 +524,21 @@ body {
 
 /* CPU per-core stripe — 一排细柱，每核一根 */
 .cpu-cores {
-  /* inline-flex：容器贴合柱子本身，不会在右侧留下一大块空轨道 */
-  display: inline-flex;
-  gap: 3px;
+  /* inline-flex 会被父级 column flex 容器 blockify 成 flex 并拉伸；
+     显式给 width: fit-content 才能让容器贴合柱子本身。
+     fit-content = min(内容宽度, 可用宽度)，所以核少时收缩、核多时铺满。 */
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  gap: 2px;
   height: 24px;
+  overflow: hidden;
 }
 .cpu-cores .core {
-  /* 核少时是几根细柱，核多时收窄排成密条 */
+  /* 基准 10px：核少时几根细柱，核多时按可用宽度收窄排成密条 */
   flex: 0 1 10px;
-  min-width: 3px;
+  min-width: 1px;
+  max-width: 10px;
   border-radius: 2px;
   background: var(--text-3);
   transition: background-color 240ms;
