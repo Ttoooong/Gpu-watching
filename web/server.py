@@ -292,7 +292,7 @@ def _parse_window(date: str, start: Optional[str], end: Optional[str]) -> tuple:
     try:
         d = datetime.strptime(date, "%Y-%m-%d").date()
     except ValueError:
-        raise HTTPException(400, f"无法解析日期: {date}")
+        raise HTTPException(400, f"Cannot parse date: {date}")
 
     def _boundary(raw: Optional[str], fallback_h: int, fallback_m: int, fallback_s: int) -> datetime:
         """Parse a window edge as HH:MM[:SS] (local time) or a full ISO stamp."""
@@ -307,25 +307,25 @@ def _parse_window(date: str, start: Optional[str], end: Optional[str]) -> tuple:
             try:
                 return datetime(d.year, d.month, d.day, hh, mm, ss)
             except ValueError:
-                raise HTTPException(400, f"无法解析时间: {raw}")
+                raise HTTPException(400, f"Cannot parse time: {raw}")
         try:
             return datetime.fromisoformat(raw)
         except ValueError:
-            raise HTTPException(400, f"无法解析时间: {raw}")
+            raise HTTPException(400, f"Cannot parse time: {raw}")
 
     s = _boundary(start, 0, 0, 0)
     e = _boundary(end, 23, 59, 59)
     if s >= e:
-        raise HTTPException(400, "start 必须早于 end")
+        raise HTTPException(400, "start must be earlier than end")
     return s, e
 
 
 @app.get("/api/history_query")
 async def get_history_query(
     date: str = Query(..., description="YYYY-MM-DD"),
-    start: Optional[str] = Query(None, description="本地时间 HH:MM 或 ISO"),
-    end: Optional[str] = Query(None, description="本地时间 HH:MM 或 ISO"),
-    gpu: Optional[int] = Query(None, description="GPU index, 缺省=全部"),
+    start: Optional[str] = Query(None, description="Local time HH:MM or ISO"),
+    end: Optional[str] = Query(None, description="Local time HH:MM or ISO"),
+    gpu: Optional[int] = Query(None, description="GPU index, default = all"),
     max_rows: int = Query(5000, ge=100, le=50000),
 ) -> dict:
     """GPU history. Mirrors /api/export but returns JSON."""
@@ -346,8 +346,8 @@ async def get_history_query(
 @app.get("/api/system/history_query")
 async def get_system_history_query(
     date: str = Query(..., description="YYYY-MM-DD"),
-    start: Optional[str] = Query(None, description="本地时间 HH:MM 或 ISO"),
-    end: Optional[str] = Query(None, description="本地时间 HH:MM 或 ISO"),
+    start: Optional[str] = Query(None, description="Local time HH:MM or ISO"),
+    end: Optional[str] = Query(None, description="Local time HH:MM or ISO"),
     max_rows: int = Query(5000, ge=100, le=50000),
 ) -> dict:
     """System history (wide format). Returns one row per timestamp."""
@@ -418,7 +418,7 @@ async def post_stop() -> dict:
 async def post_interval(body: IntervalBody) -> dict:
     ms = int(body.interval_ms)
     if ms < 100 or ms > 60_000:
-        raise HTTPException(400, "interval_ms 必须在 100 ~ 60000 之间")
+        raise HTTPException(400, "interval_ms must be between 100 and 60000")
     state.interval_ms = ms
     if state.running:
         await _ensure_stopped()
@@ -434,18 +434,18 @@ async def post_clear() -> dict:
 
 @app.get("/api/export")
 async def get_export(
-    start: Optional[str] = Query(None, description="ISO 格式, 例 2026-08-28T14:00:00"),
-    end: Optional[str] = Query(None, description="ISO 格式"),
-    gpu: Optional[int] = Query(None, description="GPU index, 缺省=全部"),
+    start: Optional[str] = Query(None, description="ISO format, e.g. 2026-08-28T14:00:00"),
+    end: Optional[str] = Query(None, description="ISO format"),
+    gpu: Optional[int] = Query(None, description="GPU index, default = all"),
 ) -> StreamingResponse:
     end_dt = _parse_dt(end) or datetime.now()
     start_dt = _parse_dt(start) or (end_dt - timedelta(hours=1))
     if start_dt >= end_dt:
-        raise HTTPException(400, "start 必须早于 end")
+        raise HTTPException(400, "start must be earlier than end")
 
     rows = logger.query(start_dt, end_dt, gpu_index=gpu)
     if not rows:
-        raise HTTPException(404, "所选时间段内没有数据")
+        raise HTTPException(404, "No data in the selected time range")
 
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
@@ -467,7 +467,7 @@ def _parse_dt(s: Optional[str]) -> Optional[datetime]:
     try:
         return datetime.fromisoformat(s)
     except ValueError:
-        raise HTTPException(400, f"无法解析时间: {s}")
+        raise HTTPException(400, f"Cannot parse time: {s}")
 
 
 # ---- SSE: live stream ----

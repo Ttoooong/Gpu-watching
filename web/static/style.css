@@ -509,7 +509,10 @@ body {
   letter-spacing: -0.02em; color: var(--text-1); line-height: 1.05; }
 .sys-kpi .unit { font-family: var(--font-mono); font-size: 13px; color: var(--text-3); }
 .sys-kpi .cap { margin-left: auto; font-size: 10px; font-weight: 600;
-  letter-spacing: 0.085em; text-transform: uppercase; color: var(--text-3); align-self: flex-end; padding-bottom: 3px; }
+  letter-spacing: 0.085em; text-transform: uppercase; color: var(--text-3);
+  align-self: flex-end; padding-bottom: 3px;
+  /* 与前面的单位至少留 10px，窄卡上才不会被挤成 "MB/s THROUGHPUT" */
+  padding-left: 10px; white-space: nowrap; }
 
 .sys-bar { height: 5px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
 .sys-bar-fill { height: 100%; background: var(--text-3); transition: width 240ms ease-out, background-color 240ms; }
@@ -522,29 +525,30 @@ body {
 .sys-kv .v { font-family: var(--font-mono); font-size: 13px; color: var(--text-1);
   margin-bottom: 5px; text-align: right; white-space: nowrap; }
 
-/* CPU per-core stripe — 一排细柱，每核一根 */
+/* CPU per-core stripe — 每核一根柱，从底部往上长 */
 .cpu-cores {
-  /* inline-flex 会被父级 column flex 容器 blockify 成 flex 并拉伸；
-     显式给 width: fit-content 才能让容器贴合柱子本身。
-     fit-content = min(内容宽度, 可用宽度)，所以核少时收缩、核多时铺满。 */
+  /* 容器占满卡片宽度，但柱子不撑开（flex-grow: 0），
+     核少时就是左边一小撮细柱，不会在右侧拖一条空轨道。 */
+  width: 100%;
   display: flex;
-  width: fit-content;
-  max-width: 100%;
-  gap: 2px;
-  height: 24px;
+  align-items: flex-end;
+  gap: 3px;
+  height: 26px;
   overflow: hidden;
 }
 .cpu-cores .core {
-  /* 基准 10px：核少时几根细柱，核多时按可用宽度收窄排成密条 */
-  flex: 0 1 10px;
-  min-width: 1px;
-  max-width: 10px;
+  /* 基准 14px：2 核时两根 14px 细柱，核多时按需收窄 */
+  flex: 0 1 14px;
+  min-width: 2px;
+  max-width: 14px;
   border-radius: 2px;
   background: var(--text-3);
-  transition: background-color 240ms;
-  min-height: 4px;
-  align-self: flex-end;
+  transition: background-color 240ms, height 240ms ease-out;
+  min-height: 3px;
 }
+/* 核很多（>16）时切到密集模式：柱子均分整条宽度，间隙压到 1px。 */
+.cpu-cores.dense { gap: 1px; }
+.cpu-cores.dense .core { flex: 1 1 0; min-width: 1px; max-width: none; }
 
 /* Network 双线（rx/tx） */
 .sys-net-dl {

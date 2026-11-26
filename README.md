@@ -3,8 +3,6 @@
 > 轻量、零前端依赖的 NVIDIA GPU + 主机健康监控面板。
 > FastAPI + 原生 Canvas，1 行命令跑起来、CSV 自动落盘、可回放历史。
 
-![overview](docs/overview.png)
-
 ---
 
 ## ✨ 特性
@@ -159,6 +157,8 @@ web/
 - **采样循环**：`web/server.py` 里一个 asyncio 任务，每 N ms 调 `GPUMonitor.sample_all()` + `SystemMonitor.sample()`，append 到 ring buffer、落 CSV、push 到 SSE 订阅者。
 - **图例交互**：图例命中测试 → `applyVisibility()` → 同步更新四张图 + KPI 卡片 + 顶部"仅 X 张卡"提示。
 - **历史模式**：关 SSE、清实时曲线、把所有 chart 切到 `xMode="fixed"`、按窗口查 CSV、按时间戳直接喂 `series[i].points`。
+- **字体**：只用系统字体栈（`system-ui` / `ui-monospace`），不挂任何 CDN webfont —— 局域网内无外网的机器也能立刻正常渲染，不会先卡住再换字体。
+- **无 GPU 降级**：检测不到 NVIDIA 卡时，自动隐藏 GPU Cluster / Performance / Processes 三段，只留主机面板。
 
 ---
 

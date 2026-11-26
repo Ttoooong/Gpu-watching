@@ -553,7 +553,9 @@
     });
     refs.net = makeSysCard({
       tag: "NETWORK",
-      cap: "THROUGHPUT",
+      // "THROUGHPUT" 在 206px 的窄卡里会把 "MB/s" 顶出内容框，
+      // 大数字本身就是接收速率，用两个字母的 RX 标注即可。
+      cap: "RX",
       unit: "MB/s",
       isNetwork: true,
     });
@@ -627,11 +629,15 @@
       if (refs.cpu.cores && cores.length) {
         if (refs.cpu.cores.children.length !== cores.length) {
           refs.cpu.cores.innerHTML = cores.map(() => `<div class="core" style="height:4px"></div>`).join("");
+          // 核多的时候切到 dense 模式：柱子均分整条宽度、间隙收到 1px，
+          // 否则 64 核会按 3px 间隙把卡片撑破。
+          refs.cpu.cores.classList.toggle("dense", cores.length > 16);
         }
-        const max = Math.max(...cores, 1);
-        // 24px 是 .cpu-cores 的轨道高度，留 2px 余量避免顶部被裁切
+        // 柱高按绝对占用率(0-100%)画，不按"最忙的那核"归一化 ——
+        // 否则整机 3% 时也会显示成满格，和左边的大数字自相矛盾。
+        // 24px 是 .cpu-cores 的轨道高度，留 2px 余量避免顶部被裁切。
         [...refs.cpu.cores.children].forEach((el, i) => {
-          el.style.height = `${Math.max(4, (cores[i] / max) * 22)}px`;
+          el.style.height = `${Math.max(4, Math.min(100, cores[i]) * 0.22)}px`;
         });
       }
       // KV: FREQ, CORES
@@ -817,13 +823,13 @@
     if (n <= 1) {
       els.chartScope.textContent = "";
     } else if (state.visible.size === n) {
-      els.chartScope.textContent = `全部 ${n} 张卡`;
+      els.chartScope.textContent = `All ${n} GPUs`;
     } else if (state.visible.size === 1) {
       const [i] = [...state.visible];
-      els.chartScope.textContent = `仅 GPU ${i} · 再点该卡片可恢复全部`;
+      els.chartScope.textContent = `GPU ${i} only · click the card again to restore all`;
     } else {
       const picked = [...state.visible].sort((a, b) => a - b).map((i) => `GPU ${i}`);
-      els.chartScope.textContent = `仅 ${picked.join(" / ")}`;
+      els.chartScope.textContent = `${picked.join(" / ")} only`;
     }
 
     for (const chart of Object.values(state.charts)) chart.draw();
@@ -1124,7 +1130,7 @@
   }
 
   async function refreshHistoryDates() {
-    els.histStatus.textContent = "查询日期中...";
+    els.histStatus.textContent = "Loading dates…";
     els.histStatus.classList.remove("error");
     const source = els.histSource.value;
     const url = source === "system" ? "/api/system/history_dates" : "/api/history_dates";
@@ -1132,12 +1138,12 @@
       const r = await (await fetch(url)).json();
       const files = r.files || [];
       els.histDate.innerHTML = files.map(f =>
-        `<option value="${f.date}">${f.date} · ${fmtBytes(f.size_bytes)} · ${f.row_count} 行</option>`
+        `<option value="${f.date}">${f.date} · ${fmtBytes(f.size_bytes)} · ${f.row_count} rows</option>`
       ).join("");
       // 同时同步 value —— 只设 innerHTML 在某些环境下 value 仍是空串
       if (files.length) els.histDate.value = files[0].date;
       if (files.length === 0) {
-        els.histStatus.textContent = "没有可用的历史文件";
+        els.histStatus.textContent = "No history files available";
         els.histStatus.classList.add("error");
         els.histApply.disabled = true;
         return;
@@ -1149,7 +1155,7 @@
       if (isGpu) {
         const names = state.gpuNames;
         els.histGpu.innerHTML =
-          `<option value="">全部 (${names.length})</option>` +
+          `<option value="">All (${names.length})</option>` +
           names.map((n, i) => `<option value="${i}">GPU ${i} · ${shortGpuName(n)}</option>`).join("");
       } else {
         els.histGpu.innerHTML = `<option value="">N/A</option>`;
@@ -1158,9 +1164,9 @@
       // 第一次进入时把起止时间留空，由后端取整天
       els.histStart.value = "";
       els.histEnd.value = "";
-      els.histStatus.textContent = `找到 ${files.length} 个文件`;
+      els.histStatus.textContent = `Found ${files.length} file${files.length === 1 ? "" : "s"}`;
     } catch (e) {
-      els.histStatus.textContent = "无法读取日期列表: " + e.message;
+      els.histStatus.textContent = "Could not read date list: " + e.message;
       els.histStatus.classList.add("error");
     }
   }
@@ -1168,7 +1174,7 @@
   async function runHistoryQuery() {
     const date = els.histDate.value;
     if (!date) {
-      els.histStatus.textContent = "请先选日期";
+      els.histStatus.textContent = "Pick a date first";
       els.histStatus.classList.add("error");
       return;
     }
@@ -1183,7 +1189,7 @@
 
     const endpoint = source === "system" ? "/api/system/history_query" : "/api/history_query";
 
-    els.histStatus.textContent = "查询中...";
+    els.histStatus.textContent = "Querying…";
     els.histStatus.classList.remove("error");
     els.histApply.disabled = true;
     try {
@@ -1267,17 +1273,17 @@
       // 状态提示 + 标题
       const lo = data.start.slice(11, 16);
       const hi = data.end.slice(11, 16);
-      const truncated = data.truncated ? " · 已抽样" : "";
+      const truncated = data.truncated ? " · sampled" : "";
       const label = source === "system"
-        ? "系统"
-        : (gpu === "" ? "全部卡" : `GPU ${gpu}`);
+        ? "System"
+        : (gpu === "" ? "All GPUs" : `GPU ${gpu}`);
       els.histStatus.textContent =
-        `${data.row_count} 行 · ${date} ${lo}–${hi} · ${label}${truncated}`;
+        `${data.row_count} rows · ${date} ${lo}–${hi} · ${label}${truncated}`;
       els.histStatus.classList.remove("error");
-      els.chartScope.textContent = `${date} ${lo}–${hi} · 历史 · ${label}`;
+      els.chartScope.textContent = `${date} ${lo}–${hi} · history · ${label}`;
       els.sysChartScope.textContent = els.chartScope.textContent;
     } catch (e) {
-      els.histStatus.textContent = "查询失败: " + e.message;
+      els.histStatus.textContent = "Query failed: " + e.message;
       els.histStatus.classList.add("error");
     } finally {
       els.histApply.disabled = false;
@@ -1374,7 +1380,7 @@
 
     let status;
     try { status = await fetchStatus(); }
-    catch (e) { alert("无法连接服务器: " + e.message); return; }
+    catch (e) { alert("Could not reach the server: " + e.message); return; }
     applyStatus(status);
 
     // 总是接 SSE：系统监控不依赖 GPU
